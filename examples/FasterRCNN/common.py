@@ -1,14 +1,11 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: common.py
 
 import numpy as np
 import cv2
+
 from tensorpack.dataflow import RNGDataFlow
 from tensorpack.dataflow.imgaug import transform
-from tensorpack.utils import logger
-
-import config
 
 
 class DataFromListOfDict(RNGDataFlow):
@@ -18,10 +15,10 @@ class DataFromListOfDict(RNGDataFlow):
         self._shuffle = shuffle
         self._size = len(lst)
 
-    def size(self):
+    def __len__(self):
         return self._size
 
-    def get_data(self):
+    def __iter__(self):
         if self._shuffle:
             self.rng.shuffle(self._lst)
         for dic in self._lst:
@@ -35,21 +32,27 @@ class CustomResize(transform.TransformAugmentorBase):
     while avoiding the longest edge to exceed max_size.
     """
 
-    def __init__(self, size, max_size, interp=cv2.INTER_LINEAR):
+    def __init__(self, short_edge_length, max_size, interp=cv2.INTER_LINEAR):
         """
         Args:
-            size (int): the size to resize the shortest edge to.
-            max_size (int): maximum allowed longest edge.
+            short_edge_length ([int, int]): a [min, max] interval from which to sample the
+                shortest edge length.
+            max_size (int): maximum allowed longest edge length.
         """
+        super(CustomResize, self).__init__()
+        if isinstance(short_edge_length, int):
+            short_edge_length = (short_edge_length, short_edge_length)
         self._init(locals())
 
     def _get_augment_params(self, img):
         h, w = img.shape[:2]
-        scale = self.size * 1.0 / min(h, w)
+        size = self.rng.randint(
+            self.short_edge_length[0], self.short_edge_length[1] + 1)
+        scale = size * 1.0 / min(h, w)
         if h < w:
-            newh, neww = self.size, scale * w
+            newh, neww = size, scale * w
         else:
-            newh, neww = scale * h, self.size
+            newh, neww = scale * h, size
         if max(newh, neww) > self.max_size:
             scale = self.max_size * 1.0 / max(newh, neww)
             newh = newh * scale
@@ -85,22 +88,55 @@ def point8_to_box(points):
     return np.concatenate((minxy, maxxy), axis=1)
 
 
+def segmentation_to_mask(polys, height, width):
+    """
+    Convert polygons to binary masks.
+
+    Args:
+        polys: a list of nx2 float array
+
+    Returns:
+        a binary matrix of (height, width)
+    """
+    polys = [p.flatten().tolist() for p in polys]
+
+    import pycocotools.mask as cocomask
+    rles = cocomask.frPyObjects(polys, height, width)
+    rle = cocomask.merge(rles)
+    return cocomask.decode(rle)
+
+
 def clip_boxes(boxes, shape):
     """
     Args:
-        boxes: nx4, float
+        boxes: (...)x4, float
         shape: h, w
     """
+    orig_shape = boxes.shape
+    boxes = boxes.reshape([-1, 4])
     h, w = shape
     boxes[:, [0, 1]] = np.maximum(boxes[:, [0, 1]], 0)
     boxes[:, 2] = np.minimum(boxes[:, 2], w)
     boxes[:, 3] = np.minimum(boxes[:, 3], h)
-    return boxes
+    return boxes.reshape(orig_shape)
 
 
-def print_config():
-    logger.info("Config: ------------------------------------------")
-    for k in dir(config):
-        if k == k.upper():
-            logger.info("{} = {}".format(k, getattr(config, k)))
-    logger.info("--------------------------------------------------")
+def filter_boxes_inside_shape(boxes, shape):
+    """
+    Args:
+        boxes: (nx4), float
+        shape: (h, w)
+
+    Returns:
+        indices: (k, )
+        selection: (kx4)
+    """
+    assert boxes.ndim == 2, boxes.shape
+    assert len(shape) == 2, shape
+    h, w = shape
+    indices = np.where(
+        (boxes[:, 0] >= 0) &
+        (boxes[:, 1] >= 0) &
+        (boxes[:, 2] <= w) &
+        (boxes[:, 3] <= h))[0]
+    return indices, boxes[indices, :]

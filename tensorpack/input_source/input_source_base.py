@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # File: input_source_base.py
 
@@ -22,10 +21,10 @@ def get_tensors_inputs(placeholders, tensors, names):
     Args:
         placeholders (list[Tensor]):
         tensors (list[Tensor]): list of tf.Tensor
-        names (list[str]): names matching the tensors
+        names (list[str]): names matching the given tensors
 
     Returns:
-        list[Tensor]: inputs to used with build_graph(),
+        list[Tensor]: inputs to used for the tower function,
             with the corresponding placeholders replaced by tensors.
     """
     assert len(tensors) == len(names), \
@@ -75,9 +74,10 @@ class InputSource(object):
     def get_input_tensors(self):
         """
         Returns:
-            list: A list of tensors corresponding to the inputs of the model,
-                used as input of :func:`build_graph`.
-                For non-placeholder tensors, should always create and return new tensors when called.
+            list[Tensor]: A list of tensors corresponding to the inputs of the model.
+                Will be used as input for the tower function.
+                This method should always create and return new tensors when called,
+                unless it returns placeholders.
         """
         return self._get_input_tensors()
 
@@ -93,6 +93,7 @@ class InputSource(object):
 
         Returns:
             list[Callback]: extra callbacks needed by this InputSource.
+            callbacks of InputSource cannot use any `trigger*()` method.
         """
         self._setup(inputs_desc)
         self._setup_done = True
@@ -111,16 +112,30 @@ class InputSource(object):
     @memoized
     def get_callbacks(self):
         """
-        An InputSource might need some extra maintainance during training,
+        An InputSource might need some extra maintenance during training,
         which is done also through the Callback interface.
         This method returns the callbacks and the return value will be memoized.
+
+        All callbacks will be automatically marked as `chief_only=False`,
+        so they will run on all nodes.
+
+        Callbacks returned by :class:`InputSource` only supports a subset of callback's functionalities:
+
+        1. It cannot access the trainer, because an :class:`InputSource` can be used in pure inference.
+        2. It cannot use the following methods: `trigger_{step,epoch}, {before,after}_epoch`.
+
+        In other words, these callbacks should only have the basic functionality of `tf.train.SessionRunHooks`.
 
         Returns:
             list[Callback]: extra callbacks needed by this InputSource.
         """
         assert self.setup_done()
-        return [CallbackFactory(
+        ret = [CallbackFactory(
             before_train=lambda _: self.reset_state())] + self._get_callbacks()
+
+        for r in ret:
+            r.set_chief_only(False)    # no input callbacks should be chief-only
+        return ret
 
     def _get_callbacks(self):
         return []
@@ -128,8 +143,9 @@ class InputSource(object):
     def reset_state(self):
         """
         Initialize/reinitialize this InputSource.
+        Must be called under a default session.
 
-        For training, it will get called by the trainer in `before_train` callbacks.
+        For training, it will get called once by the trainer in `before_train` callbacks.
         For inference, the :class:`InferenceRunner` will call this method each time it is triggered.
         """
         self._reset_state()
@@ -189,8 +205,8 @@ class ProxyInputSource(InputSource):
 
 def remap_input_source(input, names):
     """
-    When you have some :class:`InputSource` which doesn't match the inputs in
-    your :class:`ModelDesc`, use `RemapInputSource`.
+    When you have some :class:`InputSource` which doesn't match the inputs of
+    your tower function, use `RemapInputSource`.
     It produces placeholders for all the inputs in your model,
     except that the corresponding ones are replaced with the tensor produced
     by the given :class:`InputSource`.
@@ -203,7 +219,7 @@ def remap_input_source(input, names):
     Returns:
         InputSource:
 
-    Examples:
+    Example:
 
     .. code-block:: python
 

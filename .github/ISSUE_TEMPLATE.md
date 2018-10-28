@@ -1,22 +1,31 @@
-Bug Reports/Feature Requests/Usage Questions Only:
 
-Bug Reports (including performance bug):
-Some part of code (either the library or examples) doesn't work as expected.
-Always include the following:
-1. What you did. (command you run if using examples; post or describe your code if not)
-2. What you observed. (training logs)
-3. What you expected, if not obvious
-4. Your environment (TF version, GPUs), if it matters.
+# If you meet any unexpected problems when running the code, or want to report bugs, please STOP here. Go to the following link instead and fill out the information there:
+https://github.com/tensorpack/tensorpack/issues/new?template=unexpected-problems---bugs.md
 
-Feature Requests:
-1. Improve an existing feature.
-2. Add a new feature. Please note that, you can implement a lot of features by extending tensorpack
-	(See http://tensorpack.readthedocs.io/en/latest/tutorial/index.html#extend-tensorpack).
-	It may not have to be added to tensorpack unless you have a good reason.
-3. Note that we don't implement papers at others' requests.
 
-Usage Questions, e.g.:
-"How do I do [this specific thing] in tensorpack?"
-"Why certain examples need to be written in this way?"
-We don't answer general machine learning questions like:
-"I want to do [this machine learning task]. What specific things do I need to do?"
+Otherwise, you can post here for:
+1. Feature Requests:
+  + Note that you can implement a lot of features by extending Tensorpack
+   (See http://tensorpack.readthedocs.io/en/latest/tutorial/index.html#extend-tensorpack).
+   It does not have to be added to Tensorpack unless you have a good reason.
+
+2. Questions on Using/Understanding Tensorpack:
+  + Your question is probably answered in [tutorials](http://tensorpack.readthedocs.io/en/latest/tutorial/index.html#user-tutorials). Read it first.
+  + We answer "HOW to do X with Tensorpack" for a well-defined X.
+    We also answer "HOW/WHY Tensorpack does X" for some X that Tensorpack or its examples are doing.
+
+Some typical questions that we DO NOT answer:
+
++ "Could you improve/implement an example/paper ?" --
+  We have no plans to do so. We don't consider feature
+  requests for examples or implement a paper for you.
+  If you don't know how to do something yourself, you may ask a usage question.
++ "The examples do not perform well after I change the models/dataset/parameters/etc."
+  Tensorpack maintainers make sure the examples perform well without modification.
+  But it's your job to pick the model and parameters that are suitable for your own situation.
+  We do not help with such questions unless they appear to be a bug in tensorpack.
++ "Why my model doesn't work?", "I don't understand this paper you implement."
+  We do not answer machine learning questions.
+  
+
+You can also use gitter (https://gitter.im/tensorpack/users) for more casual discussions.
